@@ -31,43 +31,37 @@ func (v *Modal) handleNormal(msg tea.KeyMsg) (forward []tea.KeyMsg, nextMode Mod
 		return nil, Normal, true
 	}
 	if v.chord.pending != 0 {
-		if len(msg.Runes) != 1 {
+		if v.chord.stale() {
+			v.chord.reset()
+			// Fall through — the user's current key starts fresh.
+		} else if len(msg.Runes) != 1 {
 			// Non-printable cancels the chord (Esc, arrows, etc).
 			v.chord.reset()
 			return nil, Normal, true
+		} else {
+			r := msg.Runes[0]
+			// Operator + specifier path (3-key sequences): when the
+			// pending operator is c/d AND we haven't yet collected a
+			// specifier, treat i/a as the inner/around specifier
+			// rather than as their normal "INSERT" / "append" mode
+			// switches. This is what makes `ciw` parse correctly: the
+			// `i` after `c` belongs to the chord, not to mode-switch
+			// dispatch below.
+			if v.chord.specifier == 0 && (v.chord.pending == 'c' || v.chord.pending == 'd') && (r == 'i' || r == 'a') {
+				v.chord.setSpecifier(r)
+				return nil, Normal, true
+			}
+			if v.chord.specifier != 0 {
+				op, spec := v.chord.pending, v.chord.specifier
+				v.chord.reset()
+				return v.dispatchTextObject(op, spec, r)
+			}
+			// Plain 2-key combo (no specifier).
+			op := v.chord.pending
+			v.chord.reset()
+			combo := string(op) + string(r)
+			return v.dispatch2Key(combo)
 		}
-		combo, _ := v.chord.consume(msg.Runes[0])
-		switch combo {
-		case "gg":
-			return []tea.KeyMsg{{Type: tea.KeyRunes, Runes: []rune{'<'}, Alt: true}}, Normal, true
-		case "dd":
-			return []tea.KeyMsg{
-				{Type: tea.KeyHome},
-				{Type: tea.KeyCtrlK},
-				{Type: tea.KeyDelete},
-			}, Normal, true
-		case "dw":
-			v.deleteWord()
-			return nil, Normal, true
-		case "d$":
-			return []tea.KeyMsg{{Type: tea.KeyCtrlK}}, Normal, true
-		case "d0":
-			return []tea.KeyMsg{{Type: tea.KeyCtrlU}}, Normal, true
-		case "cw":
-			v.deleteWord()
-			return nil, Insert, true
-		case "c$":
-			return []tea.KeyMsg{{Type: tea.KeyCtrlK}}, Insert, true
-		case "c0":
-			return []tea.KeyMsg{{Type: tea.KeyCtrlU}}, Insert, true
-		case "cc":
-			row, _ := composerCursor(v.composer)
-			clearRow(v.composer, row)
-			return nil, Insert, true
-		}
-		// Unknown combo: swallow silently. Matches vim — beeping
-		// every typo would be brutal.
-		return nil, Normal, true
 	}
 
 	// Mode switches first — these don't move the cursor.
@@ -151,5 +145,63 @@ func (v *Modal) handleNormal(msg tea.KeyMsg) (forward []tea.KeyMsg, nextMode Mod
 	}
 
 	// Unrecognised key — swallow rather than insert.
+	return nil, Normal, true
+}
+
+// dispatch2Key runs a finished operator+motion combo (no specifier).
+func (v *Modal) dispatch2Key(combo string) (forward []tea.KeyMsg, nextMode Mode, handled bool) {
+	switch combo {
+	case "gg":
+		return []tea.KeyMsg{{Type: tea.KeyRunes, Runes: []rune{'<'}, Alt: true}}, Normal, true
+	case "dd":
+		return []tea.KeyMsg{
+			{Type: tea.KeyHome},
+			{Type: tea.KeyCtrlK},
+			{Type: tea.KeyDelete},
+		}, Normal, true
+	case "dw":
+		v.deleteWord()
+		return nil, Normal, true
+	case "d$":
+		return []tea.KeyMsg{{Type: tea.KeyCtrlK}}, Normal, true
+	case "d0":
+		return []tea.KeyMsg{{Type: tea.KeyCtrlU}}, Normal, true
+	case "cw":
+		v.deleteWord()
+		return nil, Insert, true
+	case "c$":
+		return []tea.KeyMsg{{Type: tea.KeyCtrlK}}, Insert, true
+	case "c0":
+		return []tea.KeyMsg{{Type: tea.KeyCtrlU}}, Insert, true
+	case "cc":
+		row, _ := composerCursor(v.composer)
+		clearRow(v.composer, row)
+		return nil, Insert, true
+	}
+	// Unknown combo: swallow silently (matches vim — beeping every
+	// typo would be brutal).
+	return nil, Normal, true
+}
+
+// dispatchTextObject runs a finished operator+specifier+object
+// sequence. Today: word objects only (iw, aw). Adding inner-sentence
+// / inner-paragraph / quoted-string text objects would slot in here
+// with sibling bounds functions in cursor.go.
+func (v *Modal) dispatchTextObject(operator, specifier, object rune) (forward []tea.KeyMsg, nextMode Mode, handled bool) {
+	combo := string(operator) + string(specifier) + string(object)
+	switch combo {
+	case "ciw":
+		v.deleteInsideWord()
+		return nil, Insert, true
+	case "caw":
+		v.deleteAroundWord()
+		return nil, Insert, true
+	case "diw":
+		v.deleteInsideWord()
+		return nil, Normal, true
+	case "daw":
+		v.deleteAroundWord()
+		return nil, Normal, true
+	}
 	return nil, Normal, true
 }

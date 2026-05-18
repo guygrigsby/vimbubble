@@ -320,3 +320,111 @@ func TestChordTakesPrecedenceOverMotion(t *testing.T) {
 		t.Errorf("after cw: mode=%v, want insert", v.Mode())
 	}
 }
+
+func TestChangeInsideWord_FromAnyPositionInTheWord(t *testing.T) {
+	cases := []struct {
+		name  string
+		cur   int // column to move to before invoking ciw
+		want  string
+	}{
+		{"start", 0, " bar"},
+		{"middle", 3, " bar"},
+		{"end", 4, " bar"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			v, ta := newTestModal(t)
+			seedNormal(t, v, ta, "hello bar") // word at 0..4, then space, then "bar"
+			for i := 0; i < c.cur; i++ {
+				pressNormal(v, ta, "l")
+			}
+			pressNormal(v, ta, "ciw")
+			if got := ta.Value(); got != c.want {
+				t.Errorf("ciw from col %d: got %q, want %q", c.cur, got, c.want)
+			}
+			if v.Mode() != Insert {
+				t.Errorf("ciw should enter Insert, got %v", v.Mode())
+			}
+		})
+	}
+}
+
+func TestDeleteInsideWord_StaysInNormal(t *testing.T) {
+	v, ta := newTestModal(t)
+	seedNormal(t, v, ta, "hello bar")
+	pressNormal(v, ta, "lll") // somewhere mid-word
+	pressNormal(v, ta, "diw")
+	if got := ta.Value(); got != " bar" {
+		t.Errorf("diw: %q, want ' bar'", got)
+	}
+	if v.Mode() != Normal {
+		t.Errorf("diw should stay Normal, got %v", v.Mode())
+	}
+}
+
+func TestChangeAroundWord_EatsTrailingSpace(t *testing.T) {
+	v, ta := newTestModal(t)
+	seedNormal(t, v, ta, "hello bar baz")
+	// Cursor at 'h' (col 0). caw eats "hello " (incl. trailing space).
+	pressNormal(v, ta, "caw")
+	if got := ta.Value(); got != "bar baz" {
+		t.Errorf("caw at col 0: got %q, want 'bar baz'", got)
+	}
+	if v.Mode() != Insert {
+		t.Errorf("caw should enter Insert, got %v", v.Mode())
+	}
+}
+
+func TestDeleteAroundWord_LeadingSpaceWhenNoTrailing(t *testing.T) {
+	v, ta := newTestModal(t)
+	seedNormal(t, v, ta, "hello bar")
+	// Move cursor into "bar" — no trailing whitespace, so daw should
+	// take the LEADING space too: "hello bar" → "hello".
+	for i := 0; i < 7; i++ { // col 7 lands inside "bar"
+		pressNormal(v, ta, "l")
+	}
+	pressNormal(v, ta, "daw")
+	if got := ta.Value(); got != "hello" {
+		t.Errorf("daw on end-of-line word: %q, want 'hello'", got)
+	}
+}
+
+func TestWordBoundsInner(t *testing.T) {
+	cases := []struct {
+		line   string
+		col    int
+		start  int
+		end    int
+	}{
+		{"hello world", 0, 0, 5}, // start of word
+		{"hello world", 2, 0, 5}, // middle of word
+		{"hello world", 4, 0, 5}, // last char of word
+		{"hello world", 5, 5, 6}, // on the space — selects the space run
+		{"hello  world", 5, 5, 7}, // two spaces — selects both
+		{"foo,bar", 0, 0, 3},     // word ends at comma
+		{"foo,bar", 3, 3, 4},     // on punctuation — selects the punct run
+		{"", 0, 0, 0},
+	}
+	for _, c := range cases {
+		gotStart, gotEnd := wordBoundsInner([]rune(c.line), c.col)
+		if gotStart != c.start || gotEnd != c.end {
+			t.Errorf("wordBoundsInner(%q, %d): got [%d,%d), want [%d,%d)", c.line, c.col, gotStart, gotEnd, c.start, c.end)
+		}
+	}
+}
+
+func TestWordBoundsAround_TrailingPreferred(t *testing.T) {
+	// Trailing whitespace is greedy when present.
+	gotStart, gotEnd := wordBoundsAround([]rune("hello  world"), 2)
+	if gotStart != 0 || gotEnd != 7 {
+		t.Errorf("aw on 'hello  world' at col 2: got [%d,%d), want [0,7)", gotStart, gotEnd)
+	}
+}
+
+func TestWordBoundsAround_LeadingFallback(t *testing.T) {
+	// No trailing whitespace — leading should be consumed instead.
+	gotStart, gotEnd := wordBoundsAround([]rune("hello bar"), 7)
+	if gotStart != 5 || gotEnd != 9 {
+		t.Errorf("aw on 'hello bar' at col 7: got [%d,%d), want [5,9)", gotStart, gotEnd)
+	}
+}

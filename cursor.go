@@ -186,3 +186,65 @@ func (v *Modal) deleteWord() {
 	end := findWordEnd(runes, col)
 	deleteRangeOnRow(v.composer, row, col, end)
 }
+
+// wordBoundsInner returns the [start, end) of vim's "inner word"
+// text object: the contiguous run of same-class characters around
+// `col`. Word class is {alnum, _}; punctuation runs and whitespace
+// runs are also single units, which matches vim's iw on those
+// regions.
+func wordBoundsInner(line []rune, col int) (start, end int) {
+	if col < 0 || col >= len(line) {
+		return col, col
+	}
+	kind := charClass(line[col])
+	start = col
+	for start > 0 && charClass(line[start-1]) == kind {
+		start--
+	}
+	end = col + 1
+	for end < len(line) && charClass(line[end]) == kind {
+		end++
+	}
+	return start, end
+}
+
+// wordBoundsAround returns the [start, end) of vim's "a word" text
+// object: inner word PLUS the trailing whitespace run, or (if there
+// is no trailing whitespace) the leading whitespace run. Matches
+// the way `daw` eats one of the two surrounding spaces so the user
+// doesn't end up with two adjacent spaces collapsing into one.
+func wordBoundsAround(line []rune, col int) (start, end int) {
+	start, end = wordBoundsInner(line, col)
+	if start == end {
+		return start, end
+	}
+	probe := end
+	for probe < len(line) && (line[probe] == ' ' || line[probe] == '\t') {
+		probe++
+	}
+	if probe > end {
+		return start, probe
+	}
+	probe = start
+	for probe > 0 && (line[probe-1] == ' ' || line[probe-1] == '\t') {
+		probe--
+	}
+	return probe, end
+}
+
+// rangeOnRow looks up the [start, end) range for the current cursor
+// position via `bounds` and deletes it. Shared by ciw/caw/diw/daw —
+// each variant only names its bounds function.
+func (v *Modal) rangeOnRow(bounds func(line []rune, col int) (int, int)) {
+	row, col := composerCursor(v.composer)
+	lines := strings.Split(v.composer.Value(), "\n")
+	if row < 0 || row >= len(lines) {
+		return
+	}
+	runes := []rune(lines[row])
+	start, end := bounds(runes, col)
+	deleteRangeOnRow(v.composer, row, start, end)
+}
+
+func (v *Modal) deleteInsideWord() { v.rangeOnRow(wordBoundsInner) }
+func (v *Modal) deleteAroundWord() { v.rangeOnRow(wordBoundsAround) }

@@ -71,6 +71,10 @@ func (m model) View() string {
 | `cw`      | change word (delete + INSERT)                |
 | `c$` `c0` | change to end / start of line                |
 | `cc`      | empty the line + INSERT                      |
+| `ciw`     | change inside word (any cursor position) + INSERT |
+| `caw`     | change a word + its surrounding space + INSERT |
+| `diw`     | delete inside word                           |
+| `daw`     | delete a word + its surrounding space        |
 | `i` `a`   | INSERT at / after cursor                     |
 | `I` `A`   | INSERT at line start / end                   |
 | `o` `O`   | open new line below / above + INSERT         |

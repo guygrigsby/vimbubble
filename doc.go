@@ -65,6 +65,11 @@
 //	c$          change to end of line (delete + INSERT)
 //	c0          change to start of line (delete + INSERT)
 //	cc          empty the line + INSERT
+//	ciw         change inside word — works from any column within
+//	            the word + INSERT
+//	caw         change a word + its surrounding whitespace + INSERT
+//	diw         delete inside word (stays NORMAL)
+//	daw         delete a word + its surrounding whitespace
 //	i / a       INSERT at / after cursor
 //	I / A       INSERT at line start / end
 //	o / O       open new line below / above + INSERT

@@ -154,8 +154,18 @@ func (v *Modal) Update(msg tea.KeyMsg) (consumed bool, cmds []tea.Cmd) {
 // chord tracks the first key of a two-key sequence. Cleared when the
 // timeout expires so the user isn't trapped if they pressed a chord
 // starter and then walked away.
+// chord tracks the partial state of a multi-key vim sequence:
+//   - 2-key:  operator + motion       — cw, dd, gg, d$, …
+//   - 3-key:  operator + specifier + object — ciw, caw, diw, daw
+//
+// The specifier (`i` for "inner", `a` for "around") bridges operator
+// and text-object keys. Bare `i` / `a` are mode switches in vim's
+// grammar; we only read them as specifiers when an operator is
+// already pending. Cleared after chordTimeout so the user isn't
+// trapped after pressing a chord starter and walking off.
 type chord struct {
-	pending   rune
+	pending   rune // the operator: 'c', 'd', 'g'
+	specifier rune // 'i' or 'a', set only mid-sequence
 	startedAt time.Time
 }
 
@@ -163,23 +173,25 @@ const chordTimeout = 800 * time.Millisecond
 
 func (c *chord) reset() {
 	c.pending = 0
+	c.specifier = 0
 	c.startedAt = time.Time{}
 }
 
 func (c *chord) start(r rune) {
+	c.reset()
 	c.pending = r
 	c.startedAt = time.Now()
 }
 
-// consume joins r with the pending key and returns the resulting
-// two-char combo + true if a chord was in progress. Stale chords
-// (older than chordTimeout) reset and return false.
-func (c *chord) consume(r rune) (combo string, complete bool) {
-	if c.pending == 0 || time.Since(c.startedAt) > chordTimeout {
-		c.reset()
-		return "", false
-	}
-	combo = string(c.pending) + string(r)
-	c.reset()
-	return combo, true
+// setSpecifier advances a pending operator into a 3-key sequence by
+// stamping the inner/around specifier. Refreshes the timeout so the
+// user gets another chordTimeout window to land the object key.
+func (c *chord) setSpecifier(r rune) {
+	c.specifier = r
+	c.startedAt = time.Now()
+}
+
+// stale reports whether the pending sequence has aged out.
+func (c *chord) stale() bool {
+	return c.pending != 0 && time.Since(c.startedAt) > chordTimeout
 }
