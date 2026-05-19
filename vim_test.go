@@ -323,9 +323,9 @@ func TestChordTakesPrecedenceOverMotion(t *testing.T) {
 
 func TestChangeInsideWord_FromAnyPositionInTheWord(t *testing.T) {
 	cases := []struct {
-		name  string
-		cur   int // column to move to before invoking ciw
-		want  string
+		name string
+		cur  int // column to move to before invoking ciw
+		want string
 	}{
 		{"start", 0, " bar"},
 		{"middle", 3, " bar"},
@@ -391,18 +391,18 @@ func TestDeleteAroundWord_LeadingSpaceWhenNoTrailing(t *testing.T) {
 
 func TestWordBoundsInner(t *testing.T) {
 	cases := []struct {
-		line   string
-		col    int
-		start  int
-		end    int
+		line  string
+		col   int
+		start int
+		end   int
 	}{
-		{"hello world", 0, 0, 5}, // start of word
-		{"hello world", 2, 0, 5}, // middle of word
-		{"hello world", 4, 0, 5}, // last char of word
-		{"hello world", 5, 5, 6}, // on the space — selects the space run
+		{"hello world", 0, 0, 5},  // start of word
+		{"hello world", 2, 0, 5},  // middle of word
+		{"hello world", 4, 0, 5},  // last char of word
+		{"hello world", 5, 5, 6},  // on the space — selects the space run
 		{"hello  world", 5, 5, 7}, // two spaces — selects both
-		{"foo,bar", 0, 0, 3},     // word ends at comma
-		{"foo,bar", 3, 3, 4},     // on punctuation — selects the punct run
+		{"foo,bar", 0, 0, 3},      // word ends at comma
+		{"foo,bar", 3, 3, 4},      // on punctuation — selects the punct run
 		{"", 0, 0, 0},
 	}
 	for _, c := range cases {

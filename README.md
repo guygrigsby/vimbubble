@@ -1,6 +1,9 @@
 # vimbubble
 
-Modal-style modal editing for [charmbracelet/bubbles](https://github.com/charmbracelet/bubbles) textareas.
+[![ci](https://github.com/guygrigsby/vimbubble/actions/workflows/ci.yml/badge.svg)](https://github.com/guygrigsby/vimbubble/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/guygrigsby/vimbubble.svg)](https://pkg.go.dev/github.com/guygrigsby/vimbubble)
+
+Vim-style modal editing for [charmbracelet/bubbles](https://github.com/charmbracelet/bubbles) textareas.
 
 Drop it next to an existing `textarea.Model`, route key events through it, get NORMAL/INSERT modes and the verbs you'd expect — `i`, `a`, `o`, `x`, `~`, `r`, `dw`, `cw`, `c$`, `cc`, and friends.
 
